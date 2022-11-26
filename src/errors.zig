@@ -187,6 +187,11 @@ fn convertError(e: c_int) Error!void {
 ///
 /// @thread_safety This function may be called from any thread.
 pub inline fn getError() Error!void {
+    if (!@hasDecl(c, "glfwGetError")) {
+        // emscripten: older gltf versions such 3.2 doesn't have this fn
+        // in which case glfwSetErrorCallback has to be used
+        return;
+    }
     return convertError(c.glfwGetError(null));
 }
 

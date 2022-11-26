@@ -2,6 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 
 const c = @import("c.zig").c;
+const is_emscripten = @import("builtin").cpu.arch == .wasm32 and c.GLFW_VERSION_MAJOR == 3 and c.GLFW_VERSION_MINOR == 2;
 
 const key = @import("key.zig");
 
@@ -90,13 +91,15 @@ pub inline fn init(hints: InitHints) error{ PlatformUnavailable, PlatformError }
         internal_debug.toggleInitialized();
     }
 
-    inline for (comptime std.meta.fieldNames(InitHints)) |field_name| {
-        const init_hint = @field(InitHint, field_name);
-        const init_value = @field(hints, field_name);
-        if (@TypeOf(init_value) == PlatformType) {
-            initHint(init_hint, @enumToInt(init_value));
-        } else {
-            initHint(init_hint, init_value);
+    if (!is_emscripten) {
+        inline for (comptime std.meta.fieldNames(InitHints)) |field_name| {
+            const init_hint = @field(InitHint, field_name);
+            const init_value = @field(hints, field_name);
+            if (@TypeOf(init_value) == PlatformType) {
+                initHint(init_hint, @enumToInt(init_value));
+            } else {
+                initHint(init_hint, init_value);
+            }
         }
     }
 
@@ -192,7 +195,7 @@ pub const InitHints = struct {
 };
 
 /// Initialization hints for passing into glfw.initHint
-const InitHint = enum(c_int) {
+const InitHint = if (is_emscripten) enum(c_int) {} else enum(c_int) {
     /// Specifies whether to also expose joystick hats as buttons, for compatibility with earlier
     /// versions of GLFW that did not have glfwGetJoystickHats.
     ///
@@ -241,16 +244,21 @@ pub const AnglePlatformType = enum(c_int) {
 };
 
 /// Platform type hints for glfw.InitHint.platform
-pub const PlatformType = enum(c_int) {
-    /// Enables automatic platform detection.
-    /// Will default to X11 on wayland.
-    any = c.GLFW_ANY_PLATFORM,
-    win32 = c.GLFW_PLATFORM_WIN32,
-    cocoa = c.GLFW_PLATFORM_COCOA,
-    wayland = c.GLFW_PLATFORM_WAYLAND,
-    x11 = c.GLFW_PLATFORM_X11,
-    nul = c.GLFW_PLATFORM_NULL,
-};
+pub const PlatformType = if (is_emscripten)
+    enum(c_int) {
+        any = 0,
+    }
+else
+    enum(c_int) {
+        /// Enables automatic platform detection.
+        /// Will default to X11 on wayland.
+        any = c.GLFW_ANY_PLATFORM,
+        win32 = c.GLFW_PLATFORM_WIN32,
+        cocoa = c.GLFW_PLATFORM_COCOA,
+        wayland = c.GLFW_PLATFORM_WAYLAND,
+        x11 = c.GLFW_PLATFORM_X11,
+        nul = c.GLFW_PLATFORM_NULL,
+    };
 
 /// Sets the specified init hint to the desired value.
 ///

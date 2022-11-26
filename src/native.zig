@@ -40,6 +40,7 @@ pub const BackendOptions = struct {
 /// The chosen backends must match those the library was compiled for. Failure to do so
 /// will cause a link-time error.
 pub fn Native(comptime options: BackendOptions) type {
+    if (@import("builtin").cpu.arch == .wasm32 or @import("builtin").cpu.arch == .wasm64) return struct {};
     const native = @cImport({
         @cDefine("GLFW_INCLUDE_VULKAN", "1");
         @cInclude("GLFW/glfw3.h");

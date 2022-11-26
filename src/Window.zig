@@ -4,6 +4,7 @@ const std = @import("std");
 const testing = std.testing;
 const mem = std.mem;
 const c = @import("c.zig").c;
+const is_emscripten = @import("builtin").cpu.arch == .wasm32 and c.GLFW_VERSION_MAJOR == 3 and c.GLFW_VERSION_MINOR == 2;
 
 const glfw = @import("main.zig");
 const Error = @import("errors.zig").Error;
@@ -20,11 +21,15 @@ const internal_debug = @import("internal_debug.zig");
 
 const Window = @This();
 
-handle: *c.GLFWwindow,
+handle: * allowzero c.GLFWwindow,
 
 /// Returns a Zig GLFW window from an underlying C GLFW window handle.
-pub inline fn from(handle: *anyopaque) Window {
-    return Window{ .handle = @ptrCast(*c.GLFWwindow, @alignCast(@alignOf(*c.GLFWwindow), handle)) };
+pub inline fn from(handle: * allowzero anyopaque) Window {
+    if (is_emscripten) {
+        // ignore alignmen - pointer is just index into js array
+        return Window{ .handle = @ptrCast(* allowzero c.GLFWwindow, handle) };
+    }
+    return Window{ .handle = @ptrCast(* allowzero c.GLFWwindow, @alignCast(@alignOf(* allowzero c.GLFWwindow), handle)) };
 }
 
 /// Resets all window hints to their default values.
@@ -46,7 +51,62 @@ pub inline fn defaultHints() void {
 }
 
 /// Window hints
-const Hint = enum(c_int) {
+const Hint = if (is_emscripten) enum(c_int) {
+    resizable = c.GLFW_RESIZABLE,
+    visible = c.GLFW_VISIBLE,
+    decorated = c.GLFW_DECORATED,
+    focused = c.GLFW_FOCUSED,
+    auto_iconify = c.GLFW_AUTO_ICONIFY,
+    floating = c.GLFW_FLOATING,
+    maximized = c.GLFW_MAXIMIZED,
+    //center_cursor = c.GLFW_CENTER_CURSOR,
+    //transparent_framebuffer = c.GLFW_TRANSPARENT_FRAMEBUFFER,
+    //focus_on_show = c.GLFW_FOCUS_ON_SHOW,
+    //mouse_passthrough = c.GLFW_MOUSE_PASSTHROUGH,
+    //scale_to_monitor = c.GLFW_SCALE_TO_MONITOR,
+
+    /// Framebuffer hints
+    red_bits = c.GLFW_RED_BITS,
+    green_bits = c.GLFW_GREEN_BITS,
+    blue_bits = c.GLFW_BLUE_BITS,
+    alpha_bits = c.GLFW_ALPHA_BITS,
+    depth_bits = c.GLFW_DEPTH_BITS,
+    stencil_bits = c.GLFW_STENCIL_BITS,
+    accum_red_bits = c.GLFW_ACCUM_RED_BITS,
+    accum_green_bits = c.GLFW_ACCUM_GREEN_BITS,
+    accum_blue_bits = c.GLFW_ACCUM_BLUE_BITS,
+    accum_alpha_bits = c.GLFW_ACCUM_ALPHA_BITS,
+    aux_buffers = c.GLFW_AUX_BUFFERS,
+
+    /// Framebuffer MSAA samples
+    samples = c.GLFW_SAMPLES,
+
+    /// Monitor refresh rate
+    refresh_rate = c.GLFW_REFRESH_RATE,
+
+    /// OpenGL stereoscopic rendering
+    stereo = c.GLFW_STEREO,
+
+    /// Framebuffer sRGB
+    srgb_capable = c.GLFW_SRGB_CAPABLE,
+
+    /// Framebuffer double buffering
+    doublebuffer = c.GLFW_DOUBLEBUFFER,
+
+    client_api = c.GLFW_CLIENT_API,
+    context_creation_api = c.GLFW_CONTEXT_CREATION_API,
+
+    context_version_major = c.GLFW_CONTEXT_VERSION_MAJOR,
+    context_version_minor = c.GLFW_CONTEXT_VERSION_MINOR,
+
+    context_robustness = c.GLFW_CONTEXT_ROBUSTNESS,
+    context_release_behavior = c.GLFW_CONTEXT_RELEASE_BEHAVIOR,
+    context_no_error = c.GLFW_CONTEXT_NO_ERROR,
+
+    opengl_forward_compat = c.GLFW_OPENGL_FORWARD_COMPAT,
+    opengl_profile = c.GLFW_OPENGL_PROFILE,
+}
+else enum(c_int) {
     resizable = c.GLFW_RESIZABLE,
     visible = c.GLFW_VISIBLE,
     decorated = c.GLFW_DECORATED,
@@ -213,7 +273,7 @@ pub const Hints = struct {
     pub const ContextCreationAPI = enum(c_int) {
         native_context_api = c.GLFW_NATIVE_CONTEXT_API,
         egl_context_api = c.GLFW_EGL_CONTEXT_API,
-        osmesa_context_api = c.GLFW_OSMESA_CONTEXT_API,
+        osmesa_context_api = if (@hasDecl(c, "GLFW_OSMESA_CONTEXT_API")) c.GLFW_OSMESA_CONTEXT_API else 0,
     };
 
     pub const ContextRobustness = enum(c_int) {
@@ -1353,7 +1413,9 @@ pub inline fn setUserPointer(self: Window, pointer: ?*anyopaque) void {
 /// see also: window_userptr, glfw.Window.setUserPointer
 pub inline fn getUserPointer(self: Window, comptime T: type) ?*T {
     internal_debug.assertInitialized();
-    if (c.glfwGetWindowUserPointer(self.handle)) |user_pointer| return @ptrCast(?*T, @alignCast(@alignOf(T), user_pointer));
+    if (c.glfwGetWindowUserPointer(self.handle)) |user_pointer| {
+        return @ptrCast(?*T, @alignCast(@alignOf(T), user_pointer));
+    }
     getError() catch |err| return switch (err) {
         Error.NotInitialized => unreachable,
         else => unreachable,
@@ -1386,7 +1448,7 @@ pub inline fn setPosCallback(self: Window, comptime callback: ?fn (window: Windo
 
     if (callback) |user_callback| {
         const CWrapper = struct {
-            pub fn posCallbackWrapper(handle: ?*c.GLFWwindow, xpos: c_int, ypos: c_int) callconv(.C) void {
+            pub fn posCallbackWrapper(handle: ?* allowzero c.GLFWwindow, xpos: c_int, ypos: c_int) callconv(.C) void {
                 @call(.{ .modifier = .always_inline }, user_callback, .{
                     from(handle.?),
                     @intCast(i32, xpos),
@@ -1424,7 +1486,7 @@ pub inline fn setSizeCallback(self: Window, comptime callback: ?fn (window: Wind
 
     if (callback) |user_callback| {
         const CWrapper = struct {
-            pub fn sizeCallbackWrapper(handle: ?*c.GLFWwindow, width: c_int, height: c_int) callconv(.C) void {
+            pub fn sizeCallbackWrapper(handle: ?* allowzero c.GLFWwindow, width: c_int, height: c_int) callconv(.C) void {
                 @call(.{ .modifier = .always_inline }, user_callback, .{
                     from(handle.?),
                     @intCast(i32, width),
@@ -1470,7 +1532,7 @@ pub inline fn setCloseCallback(self: Window, comptime callback: ?fn (window: Win
 
     if (callback) |user_callback| {
         const CWrapper = struct {
-            pub fn closeCallbackWrapper(handle: ?*c.GLFWwindow) callconv(.C) void {
+            pub fn closeCallbackWrapper(handle: ?* allowzero c.GLFWwindow) callconv(.C) void {
                 @call(.{ .modifier = .always_inline }, user_callback, .{
                     from(handle.?),
                 });
@@ -1512,7 +1574,7 @@ pub inline fn setRefreshCallback(self: Window, comptime callback: ?fn (window: W
 
     if (callback) |user_callback| {
         const CWrapper = struct {
-            pub fn refreshCallbackWrapper(handle: ?*c.GLFWwindow) callconv(.C) void {
+            pub fn refreshCallbackWrapper(handle: ?* allowzero c.GLFWwindow) callconv(.C) void {
                 @call(.{ .modifier = .always_inline }, user_callback, .{
                     from(handle.?),
                 });
@@ -1555,7 +1617,7 @@ pub inline fn setFocusCallback(self: Window, comptime callback: ?fn (window: Win
 
     if (callback) |user_callback| {
         const CWrapper = struct {
-            pub fn focusCallbackWrapper(handle: ?*c.GLFWwindow, focused: c_int) callconv(.C) void {
+            pub fn focusCallbackWrapper(handle: ?* allowzero c.GLFWwindow, focused: c_int) callconv(.C) void {
                 @call(.{ .modifier = .always_inline }, user_callback, .{
                     from(handle.?),
                     focused == c.GLFW_TRUE,
