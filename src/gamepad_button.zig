@@ -1,9 +1,10 @@
 const c = @import("c.zig").c;
+const is_emscripten = @import("builtin").cpu.arch == .wasm32 and c.GLFW_VERSION_MAJOR == 3 and c.GLFW_VERSION_MINOR == 2;
 
 /// Gamepad buttons.
 ///
 /// See glfw.getGamepadState for how these are used.
-pub const GamepadButton = enum(c_int) {
+pub const GamepadButton = if (is_emscripten) enum(c_int) {} else enum(c_int) {
     a = c.GLFW_GAMEPAD_BUTTON_A,
     b = c.GLFW_GAMEPAD_BUTTON_B,
     x = c.GLFW_GAMEPAD_BUTTON_X,

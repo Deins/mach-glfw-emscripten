@@ -1284,10 +1284,10 @@ pub const Attrib = enum(c_int) {
     auto_iconify = c.GLFW_AUTO_ICONIFY,
     floating = c.GLFW_FLOATING,
     maximized = c.GLFW_MAXIMIZED,
-    transparent_framebuffer = c.GLFW_TRANSPARENT_FRAMEBUFFER,
-    hovered = c.GLFW_HOVERED,
-    focus_on_show = c.GLFW_FOCUS_ON_SHOW,
-    mouse_passthrough = c.GLFW_MOUSE_PASSTHROUGH,
+    transparent_framebuffer = if (is_emscripten) 0xBAD1 else c.GLFW_TRANSPARENT_FRAMEBUFFER,
+    hovered = if (is_emscripten) 0xBAD2 else c.GLFW_HOVERED,
+    focus_on_show = if (is_emscripten) 0xBAD3 else c.GLFW_FOCUS_ON_SHOW,
+    mouse_passthrough = if (is_emscripten) 0xBAD4 else c.GLFW_MOUSE_PASSTHROUGH,
     doublebuffer = c.GLFW_DOUBLEBUFFER,
 
     client_api = c.GLFW_CLIENT_API,
@@ -1299,7 +1299,7 @@ pub const Attrib = enum(c_int) {
     context_robustness = c.GLFW_CONTEXT_ROBUSTNESS,
     context_release_behavior = c.GLFW_CONTEXT_RELEASE_BEHAVIOR,
     context_no_error = c.GLFW_CONTEXT_NO_ERROR,
-    context_debug = c.GLFW_CONTEXT_DEBUG,
+    context_debug = if (is_emscripten) 0xBAD5 else c.GLFW_CONTEXT_DEBUG,
 
     opengl_forward_compat = c.GLFW_OPENGL_FORWARD_COMPAT,
     opengl_profile = c.GLFW_OPENGL_PROFILE,
@@ -1486,7 +1486,7 @@ pub inline fn setSizeCallback(self: Window, comptime callback: ?fn (window: Wind
     if (callback) |user_callback| {
         const CWrapper = struct {
             pub fn sizeCallbackWrapper(handle: ?*c.GLFWwindow, width: c_int, height: c_int) callconv(.C) void {
-                @call(.{ .modifier = .always_inline }, user_callback, .{
+                @call(.always_inline , user_callback, .{
                     from(handle.?),
                     @intCast(i32, width),
                     @intCast(i32, height),
@@ -1532,7 +1532,7 @@ pub inline fn setCloseCallback(self: Window, comptime callback: ?fn (window: Win
     if (callback) |user_callback| {
         const CWrapper = struct {
             pub fn closeCallbackWrapper(handle: ?*c.GLFWwindow) callconv(.C) void {
-                @call(.{ .modifier = .always_inline }, user_callback, .{
+                @call(.always_inline , user_callback, .{
                     from(handle.?),
                 });
             }
@@ -1574,7 +1574,7 @@ pub inline fn setRefreshCallback(self: Window, comptime callback: ?fn (window: W
     if (callback) |user_callback| {
         const CWrapper = struct {
             pub fn refreshCallbackWrapper(handle: ?*c.GLFWwindow) callconv(.C) void {
-                @call(.{ .modifier = .always_inline }, user_callback, .{
+                @call(.always_inline , user_callback, .{
                     from(handle.?),
                 });
             }
@@ -1617,7 +1617,7 @@ pub inline fn setFocusCallback(self: Window, comptime callback: ?fn (window: Win
     if (callback) |user_callback| {
         const CWrapper = struct {
             pub fn focusCallbackWrapper(handle: ?*c.GLFWwindow, focused: c_int) callconv(.C) void {
-                @call(.{ .modifier = .always_inline }, user_callback, .{
+                @call(.always_inline, user_callback, .{
                     from(handle.?),
                     focused == c.GLFW_TRUE,
                 });
@@ -1800,8 +1800,8 @@ pub const InputMode = enum(c_int) {
     cursor = c.GLFW_CURSOR,
     sticky_keys = c.GLFW_STICKY_KEYS,
     sticky_mouse_buttons = c.GLFW_STICKY_MOUSE_BUTTONS,
-    lock_key_mods = c.GLFW_LOCK_KEY_MODS,
-    raw_mouse_motion = c.GLFW_RAW_MOUSE_MOTION,
+    lock_key_mods = if (is_emscripten) 0xBAD1 else c.GLFW_LOCK_KEY_MODS,
+    raw_mouse_motion = if (is_emscripten) 0xBAD2 else c.GLFW_RAW_MOUSE_MOTION,
 };
 
 /// A cursor input mode to be supplied to `glfw.Window.setInputModeCursor`
